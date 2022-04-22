@@ -6,6 +6,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/2captcha/2captcha-go"
+	"github.com/charmbracelet/bubbles/progress"
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gookit/color"
 	"github.com/gorilla/websocket"
 	"io/ioutil"
@@ -42,10 +46,17 @@ func Authentication(c *websocket.Conn) {
 			log.Fatal(err)
 		}
 		c.ReadMessage()
-	
+		currentPercent+=0.25
 	}
 
-	
+	m := model{
+		progress: progress.New(progress.WithDefaultGradient()),
+	}
+
+	if err := tea.NewProgram(&m).Start(); err != nil {
+		fmt.Println("Oh no!", err)
+		os.Exit(1)
+	}
 }
 func main() {
 	restart:
@@ -290,3 +301,67 @@ func main() {
 }
 
 
+var (
+	currentPercent = 0.00
+)
+
+const (
+	padding  = 2
+	maxWidth = 80
+)
+
+
+
+var helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#626262")).Render
+type tickMsg time.Time
+
+type model struct {
+	progress progress.Model
+}
+
+func (_ *model) Init() tea.Cmd {
+	return tickCmd()
+}
+
+func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		return m, tea.Quit
+
+	case tea.WindowSizeMsg:
+		m.progress.Width = msg.Width - padding*2 - 4
+		if m.progress.Width > maxWidth {
+			m.progress.Width = maxWidth
+		}
+		return m, nil
+
+	case tickMsg:
+		if m.progress.Percent() == 1.0 {
+			return m, tea.Quit
+		}
+
+		cmd := m.progress.IncrPercent(currentPercent)
+		return m, tea.Batch(tickCmd(), cmd)
+	case progress.FrameMsg:
+		progressModel, cmd := m.progress.Update(msg)
+		m.progress = progressModel.(progress.Model)
+		return m, cmd
+
+	default:
+		return m, nil
+	}
+}
+
+func (e *model) View() string {
+	pad := strings.Repeat(" ", padding)
+	return "\n" +
+		pad + e.progress.View() + "\n\n"
+
+
+}
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
