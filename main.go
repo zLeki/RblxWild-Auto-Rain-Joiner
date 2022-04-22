@@ -59,7 +59,7 @@ func Authentication(c *websocket.Conn) {
 	}
 }
 func main() {
-
+	restart:
 	timestart := time.Now()
 	flag.Parse()
 	log.SetFlags(0)
@@ -87,9 +87,10 @@ func main() {
 	if err != nil {
 		color.Error.Tips("Error restarting..: %s", err)
 		time.Sleep(time.Second * 5)
-		os.StartProcess(os.Args[0], os.Args, &os.ProcAttr{Files: []*os.File{os.Stdin, os.Stdout, os.Stderr}})
+		goto restart
 	}
 	color.Notice.Tips("Configuration file loaded successfully.")
+
 	u := url.URL{Scheme: "wss", Host: *addr, Path: "/socket.io/", RawQuery: "EIO=4&transport=websocket"}
 	if con.Debug {
 		color.Debug.Tips("Connecting to %s", u.String())
@@ -103,7 +104,7 @@ func main() {
 	}
 
 	defer c.Close()
-	jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Bot online","color":2303786,"fields":[{"name":"Time Elapsed to Authenticate","value":"`+time.Since(timestart).String()+`"}],"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://pa1.narvii.com/6754/65dae7219636e753ca956d20cb510fb60deb0119_hq.gif"}}],"attachments":[]}`)
+	jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Authentication success","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed to authenticate","value":"`+time.Since(timestart).String()+`","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"nil","inline":true},{"name":"PotID","value":"`+strconv.Itoa(con.LatestRainID)+`","inline":true},{"name":"Authentication","value":"`+con.AuthKey+`","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
 	req, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 	if err != nil {
 		color.Error.Tips("Error sending webhook: %s", err)
@@ -115,6 +116,7 @@ func main() {
 	defer close(done)
 	var oldPrice int
 	for {
+
 		c.WriteMessage(websocket.TextMessage, []byte("3"))
 		if con.Debug{
 			color.Debug.Tips("Sent ping to "+u.String())
@@ -122,7 +124,8 @@ func main() {
 		_, message, err := c.ReadMessage()
 		if err != nil {
 			log.Println("Error while running; Restarting Info:", err)
-			os.StartProcess(os.Args[0], os.Args, &os.ProcAttr{Files: []*os.File{os.Stdin, os.Stdout, os.Stderr}})
+			time.Sleep(time.Second * 5)
+			goto restart
 
 		}
 		if strings.Contains(string(message), "updatePotVariables") {
@@ -148,9 +151,14 @@ func main() {
 				color.Debug.Tips("Updated old price variable with the new variable")
 			}
 
-
-			color.Info.Tips("Price has increased! " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
-
+			if oldPrice < data.NewPrize {
+				color.Info.Tips("Price has increased! " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
+			}else if oldPrice > data.NewPrize {
+				color.Info.Tips("Rain has ended. Price has returned to 3000: " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
+				
+				jsonData2 := []byte(`{"content":"Rain has ended. Price has returned to 3000: ` + strconv.Itoa(oldPrice) + ` -> ` + strconv.Itoa(data.NewPrize) + ` | RainID: ` + strconv.Itoa(con.LatestRainID)+`"}`)
+				http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData2))
+			}
 			oldPrice = data.NewPrize
 
 
@@ -186,19 +194,18 @@ func main() {
 				code, err := c.Solve(cap.ToRequest())
 				if err != nil {
 					log.Println(err);
-					if strings.Contains(err.Error(), "impossible") || strings.Contains(err.Error(), "timeout") {
-						con.LatestRainID +=1
-						if con.Debug {
-							color.Debug.Tips("Captcha timeout TIME ELAPSED: "+strconv.Itoa(int(time.Since(timer))))
-							jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"`+err.Error()+`","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`"}],"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://pa1.narvii.com/6754/65dae7219636e753ca956d20cb510fb60deb0119_hq.gif"}}],"attachments":[]}`)
-							http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
-							if con.Debug {
-								if data, err := ioutil.ReadAll(req.Body); err != nil {
-									log.Println("Error:", err)
-								} else {
-									color.Debug.Tips("Webhook sent. "+req.Status+"\n"+string(data))
-								}
-							}
+					con.LatestRainID += 1
+
+					saveJson, _ := json.Marshal(con)
+					ioutil.WriteFile("./settings.json", saveJson, 0644)
+					color.Debug.Tips("Captcha timeout TIME ELAPSED: "+strconv.Itoa(int(time.Since(timer))))
+					jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"`+err.Error()+`","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`","inline":true},{"name":"PotID","value":"`+strconv.Itoa(con.LatestRainID)+`","inline":true},{"name":"Authentication","value":"`+con.AuthKey+`","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
+					http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
+					if con.Debug {
+						if data, err := ioutil.ReadAll(req.Body); err != nil {
+							log.Println("Error:", err)
+						} else {
+							color.Debug.Tips("Webhook sent. "+req.Status+"\n"+string(data))
 						}
 					}
 					return
@@ -244,7 +251,7 @@ func main() {
 						}
 						color.Success.Tips("$uccessfully joined the rain!")
 
-						jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`"}],"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://pa1.narvii.com/6754/65dae7219636e753ca956d20cb510fb60deb0119_hq.gif"}}],"attachments":[]}`)
+						jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`","inline":true},{"name":"PotID","value":"`+strconv.Itoa(con.LatestRainID)+`","inline":true},{"name":"Authentication","value":"`+con.AuthKey+`","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
 						req, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 						if err != nil {
 							color.Error.Tips("Error sending webhook: "+err.Error())
@@ -260,8 +267,8 @@ func main() {
 						}
 						var DataByData DataBy
 						json.Unmarshal(data, &DataByData)
-
-						jsonData1 := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"`+DataByData.Message+`","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`"}],"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://pa1.narvii.com/6754/65dae7219636e753ca956d20cb510fb60deb0119_hq.gif"}}],"attachments":[]}`)
+						jsonData1 := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"`+DataByData.Message+`","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`","inline":true},{"name":"PotID","value":"`+strconv.Itoa(con.LatestRainID)+`","inline":true},{"name":"Authentication","value":"`+con.AuthKey+`","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
+						
 						req1, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData1))
 						log.Println(oldPrice, string(data), time.Since(timer).String())
 						if err != nil {
@@ -281,8 +288,13 @@ func main() {
 						color.Error.Tips("Failed to join the rain :( " + string(data))
 
 					}
-					con.LatestRainID += 1
+
+
 				}
+				con.LatestRainID += 1
+
+				saveJson, _ := json.Marshal(con)
+				ioutil.WriteFile("./settings.json", saveJson, 0644)
 			}()
 		}
 	}
