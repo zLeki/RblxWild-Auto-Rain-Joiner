@@ -5,18 +5,16 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/2captcha/2captcha-go"
-	"github.com/charmbracelet/bubbles/progress"
-	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/charmbracelet/lipgloss"
+	api2captcha "github.com/2captcha/2captcha-go"
 	"github.com/gookit/color"
 	"github.com/gorilla/websocket"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"os/signal"
 	"strconv"
 	"strings"
@@ -24,57 +22,200 @@ import (
 )
 
 var (
-	addr = flag.String("addr", "rblxwild.com", "http service address")
-	OldBalance = 0
+	addr                = flag.String("addr", "rblxwild.com", "http service address")
+	oldPrice            int
+	Estimated           int
+	Joining             = "false"
+	PotID               int
+	RainsJoined         = 0
+	MOTD                = []string{"discord.gg/KZpWWW6eK4", "spencer likes men", "this is a virus", "github.com/zLeki", "asm is sexy", "message of the day", "idk what to put here", "view my portfolio leki.sbs/portfolio", "i get 0 bitches", "yes", "noah is hot", "im rich (not in real life)"}
+	AuthorizationConfig *ParsedData
+	TurnoffUi           = false
 )
+
+type ParsedData struct {
+	UserData struct {
+		DisplayName string `json:"displayName"`
+		Balance     int    `json:"balance"`
+	} `json:"userData"`
+	Events struct {
+		Rain struct {
+			Pot struct {
+				ID                 int    `json:"id"`
+				Prize              int    `json:"prize"`
+				State              string `json:"state"`
+				CreatedAt          int    `json:"createdAt"`
+				LastUpdateMs       int64  `json:"lastUpdateMs"`
+				JoinedPlayersCount int    `json:"joinedPlayersCount"`
+			} `json:"pot"`
+		} `json:"rain"`
+	} `json:"events"`
+}
 type Config struct {
 	AuthKey       string `json:"AuthKey"`
 	TwoCaptchaKey string `json:"2CaptchaKey"`
 	LatestRainID  int    `json:"LatestRainID"`
 	Webhook       string `json:"Webhook"`
 	Debug         bool   `json:"Debug"`
+	SafeMode      bool   `json:"SafeMode"`
 }
+
 //wss://rblxwild.com/socket.io/?EIO=3&transport=websocket
 //wss://rblxwild.com/socket.io/?EIO=3&transport=websocket
 func Authentication(c *websocket.Conn) {
-	var items = []string{"40", `42["chat:subscribe",{"channel":"EN"}]`, `42["cases:subscribe"]`, `42["events:subscribe"]`, "42[\"authentication\",null]"}
-	color.Info.Tips("Authenticating...")
 
-	for _,v := range items {
-		err := c.WriteMessage(websocket.TextMessage, []byte(v))
+restart:
+	TurnoffUi = false
+	jsonFile, err := os.Open("./settings.json")
+	if err != nil {
+		os.Create("./settings.json")
+		jsonFile, err = os.Open("./settings.json")
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
-		c.ReadMessage()
-		currentPercent+=0.25
-	}
-
-	m := model{
-		progress: progress.New(progress.WithDefaultGradient()),
-	}
-
-	if err := tea.NewProgram(&m).Start(); err != nil {
-		fmt.Println("Oh no!", err)
+		jsonData, _ := json.Marshal(Config{
+			AuthKey:       "",
+			TwoCaptchaKey: "",
+			LatestRainID:  0,
+			Webhook:       "",
+			Debug:         false,
+			SafeMode:      true,
+		})
+		ioutil.WriteFile("./settings.json", jsonData, 0644)
+		fmt.Println(err)
+		time.Sleep(time.Second * 5)
 		os.Exit(1)
 	}
+	defer jsonFile.Close()
+	byteValue, _ := ioutil.ReadAll(jsonFile)
+	var foo Config
+	err = json.Unmarshal(byteValue, &foo)
+	var items = []string{"40", `42["events:subscribe"]`, `42["authentication",{"authToken":"` + foo.AuthKey + `","clientTime":1651530049953}]`, `42["chat:subscribe",{"channel":"EN"}]`, `42["cases:subscribe"]`}
+	color.Info.Tips("Authenticating...")
+
+	for _, v := range items {
+
+		err := c.WriteMessage(websocket.TextMessage, []byte(v))
+		if err != nil {
+			log.Println("Error while reading; Restarting Info:", err)
+			TurnoffUi = true
+			time.Sleep(time.Second * 5)
+			goto restart
+		}
+		_, message, err := c.ReadMessage()
+		if err != nil {
+			log.Println("Error while running; Restarting Info:", err)
+			TurnoffUi = true
+			time.Sleep(time.Second * 5)
+			goto restart
+
+		}
+		if strings.Contains(string(message), "authenticationResponse") {
+
+			message = []byte(strings.Split(string(message), "42[\"authenticationResponse\",")[1])
+			message = []byte(strings.Split(string(message), "]")[0])
+			var parsedData ParsedData
+			json.Unmarshal(message, &parsedData)
+			jsonFile, err := os.Open("./settings.json")
+			if err != nil {
+				log.Println("Error while opening settings.json:", err)
+				TurnoffUi = true
+
+				goto restart
+			}
+			byteValue, _ := ioutil.ReadAll(jsonFile)
+			var con Config
+			err = json.Unmarshal(byteValue, &con)
+			con.LatestRainID = parsedData.Events.Rain.Pot.ID
+			AuthorizationConfig = &parsedData
+			saveJson, _ := json.Marshal(con)
+			ioutil.WriteFile("./settings.json", saveJson, 0644)
+
+		}
+	}
+
+}
+func GetLogo() string {
+	return `
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⡎⠀⠀⠀⠀⠀⠀⣴⡏⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣤⣾⠟⠀⠀⠀⠀⠀⣠⣾⡿⣿⣿⣿⣷⣶⣶⣶⠀
+⠀⣿⣿⣷⣶⣶⣶⣿⣿⣿⣿⣟⣁⣀⣀⣀⣠⣴⣾⡿⠋⠀⠀⠈⠉⠉⠉⠉⠉⠀
+⠀⠈⠉⠉⠉⠉⠉⠉⠙⠛⠻⠿⠿⠿⠿⠛⠛⢋⣁⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠰⣶⣶⣶⣶⣾⣿⣿⣿⣷⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠻⣿⣿⣿⣿⣿⣿⣿⣿⣦⠀⠀⠀⠀⠀⠀⠀⠀		⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⢿⣿⣿⣿⣿⣿⣿⣿⣷⡄⠀⠀⠀⠀▒█▀▀▀█ █▀▀ █▀▀█ █▀▀█ █▀▀█ █▀▀ ▒█▀▀▀█ ▀▀█▀▀ █▀▀█ █▀▀█ █▀▄▀█
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢤⣶⣶⣾⣿⣿⣿⣿⣿⣿⣟⠉⠉⠀⠀⠀⠀⠀░▀▀▀▄▄ █░░ █▄▄▀ █▄▄█ █░░█ █▀▀ ░▀▀▀▄▄ ░░█░░ █░░█ █▄▄▀ █░▀░█
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠿⣿⣿⣿⣿⣿⣿⣿⣧⡀⠀⠀⠀⠀⠀▒█▄▄▄█ ▀▀▀ ▀░▀▀ ▀░░▀ █▀▀▀ ▀▀▀ ▒█▄▄▄█ ░░▀░░ ▀▀▀▀ ▀░▀▀ ▀░░░▀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠻⢿⣿⣿⣿⣿⣷⡀⠀⠀⠀⠀		b    y        l    e    k    i
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠛⠿⣿⣿⣿⣄⠀⠀⠀	   [ Message of the day "` + MOTD[rand.Intn(len(MOTD)-1)] + `" ]
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠛⢿⣆⠀⠀⠀⠀
+⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+`
 }
 func main() {
-	restart:
-	timestart := time.Now()
+	fmt.Printf(GetLogo() + `
+
+⠀⠀⠀		[    P r e s s    e n t e r    t o    c o n t i n u e    ]
+`)
+
+	_, err := fmt.Scanln()
+	if err != nil {
+		return
+	}
+	fmt.Println("Starting...")
+	fmt.Println("Checking for updates...")
+	time.Sleep(time.Second * 2)
+	fmt.Println("Starting bot...")
+	go GUI()
+
+restart:
+
 	flag.Parse()
 	log.SetFlags(0)
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
-	jsonFile, err := os.Open("settings.json")
+
+	u := url.URL{Scheme: "wss", Host: *addr, Path: "/socket.io/", RawQuery: "EIO=4&transport=websocket"}
+
+	c, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
+
+	Authentication(c)
+
+	if err != nil {
+		log.Println("dial:", err, resp.Status)
+	}
+
+	defer c.Close()
+	//jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Authentication success","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed to authenticate","value":"` + time.Since(timestart).String() + `","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"nil","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true},{"name":"SafeMode","value":"` + strconv.FormatBool(con.SafeMode) + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif"}}],"username":"StormScraper","avatar_url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif","attachments":[]}`)
+	//req, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
+	//if err != nil {
+	//	color.Error.Tips("Error sending webhook: %s", err)
+	//}
+	//if con.Debug {
+	//	color.Debug.Tips("Webhook sent. " + req.Status)
+	//}
+	jsonFile, err := os.Open("./settings.json")
 	if err != nil {
 		os.Create("./settings.json")
-		jsonFile, err = os.Open("settings.json")
+		jsonFile, err = os.Open("./settings.json")
 		if err != nil {
-			log.Fatal(err)
+			log.Println(err)
 		}
-		jsonFile.Write([]byte(`{"AuthKey":"","2CaptchaKey":"", "LatestRainID":0}`))
+		jsonData, _ := json.Marshal(Config{
+			AuthKey:       "",
+			TwoCaptchaKey: "",
+			LatestRainID:  0,
+			Webhook:       "",
+			Debug:         false,
+			SafeMode:      true,
+		})
+		ioutil.WriteFile("./settings.json", jsonData, 0644)
 		fmt.Println(err)
+		time.Sleep(time.Second * 5)
+		os.Exit(1)
 	}
 	defer jsonFile.Close()
 	byteValue, _ := ioutil.ReadAll(jsonFile)
@@ -85,85 +226,54 @@ func main() {
 		color.Debug.Tips(string(byteValue))
 	}
 	if err != nil {
-		color.Error.Tips("Error restarting..: %s", err)
-		time.Sleep(time.Second * 5)
+		if con.Debug {
+			color.Error.Tips("Error restarting..: %s", err)
+			time.Sleep(time.Second * 5)
+		}
+		TurnoffUi = true
+
 		goto restart
 	}
-	color.Notice.Tips("Configuration file loaded successfully.")
 
-	u := url.URL{Scheme: "wss", Host: *addr, Path: "/socket.io/", RawQuery: "EIO=4&transport=websocket"}
-	if con.Debug {
-		color.Debug.Tips("Connecting to %s", u.String())
-	}
-	c, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
-
-	Authentication(c)
-
-	if err != nil {
-		log.Fatal("dial:", err, resp.Status)
-	}
-
-	defer c.Close()
-	jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Authentication success","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed to authenticate","value":"`+time.Since(timestart).String()+`","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"nil","inline":true},{"name":"PotID","value":"`+strconv.Itoa(con.LatestRainID)+`","inline":true},{"name":"Authentication","value":"`+con.AuthKey+`","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
-	req, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
-	if err != nil {
-		color.Error.Tips("Error sending webhook: %s", err)
-	}
-	if con.Debug {
-		color.Debug.Tips("Webhook sent. "+req.Status)
-	}
-	done := make(chan struct{})
-	defer close(done)
-	var oldPrice int
 	for {
-
+		PotID = con.LatestRainID
 		c.WriteMessage(websocket.TextMessage, []byte("3"))
-		if con.Debug{
-			color.Debug.Tips("Sent ping to "+u.String())
+		if con.Debug {
+			color.Debug.Tips("Sent ping to " + u.String())
 		}
+
 		_, message, err := c.ReadMessage()
 		if err != nil {
-			log.Println("Error while running; Restarting Info:", err)
-			time.Sleep(time.Second * 5)
-			goto restart
-
-		}
-		if strings.Contains(string(message), "updatePotVariables") {
-			type Data struct {
-				NewPrize              int `json:"newPrize"`
-				NewJoinedPlayersCount int `json:"newJoinedPlayersCount"`
-			}
-
-			var data Data
-			jsonData := strings.Split(string(message), `",`)[1];
-			jsonData = strings.Replace(jsonData, "]", "", -1)
-			err := json.Unmarshal([]byte(jsonData), &data)
-
-			if err != nil {
-				log.Fatalf("error: %v", err)
-			}
 			if con.Debug {
-				color.Debug.Tips("Data structure complete")
-				color.Debug.Tips("Pointer variable created for the data structure")
-				color.Debug.Tips("NewPrize: %d", data.NewPrize)
-				color.Debug.Tips("NewJoinedPlayersCount: %d", data.NewJoinedPlayersCount)
-				color.Debug.Tips("Json unmarshalled")
-				color.Debug.Tips("Updated old price variable with the new variable")
+				color.Error.Tips("Error reading message: " + err.Error())
 			}
+			TurnoffUi = true
 
-			if oldPrice < data.NewPrize {
-				color.Info.Tips("Price has increased! " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
-			}else if oldPrice > data.NewPrize {
-				color.Info.Tips("Rain has ended. Price has returned to 3000: " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
-				
-				jsonData2 := []byte(`{"content":"Rain has ended. Price has returned to 3000: ` + strconv.Itoa(oldPrice) + ` -> ` + strconv.Itoa(data.NewPrize) + ` | RainID: ` + strconv.Itoa(con.LatestRainID)+`"}`)
-				http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData2))
-			}
-			oldPrice = data.NewPrize
-
+			goto restart
+		}
+		if con.Debug {
+			color.Debug.Tips("Message received: " + string(message))
+		}
+		if strings.Contains(string(message), "events:rain:updatePotVariables") {
+			UpdateRain(&con, message)
 
 		} else if strings.Contains(string(message), "ENDING") && strings.Contains(string(message), "newState") {
 			go func() {
+				Joining = "Joining..."
+				if con.SafeMode {
+					num := rand.Intn(100)
+					if num > 95 {
+						con.LatestRainID += 1
+
+						saveJson, _ := json.Marshal(con)
+						ioutil.WriteFile("./settings.json", saveJson, 0644)
+						color.Warn.Tips("Pulled a " + strconv.Itoa(num) + "Safe mode is enabled. Skipping rain. Pot Value: " + strconv.Itoa(oldPrice) + " | RainID: " + strconv.Itoa(con.LatestRainID))
+						jsonData := []byte(`{"content":"@everyone Safe mode is enabled. Skipping rain. Pot Value: ` + strconv.Itoa(oldPrice) + ` | RainID: ` + strconv.Itoa(con.LatestRainID) + `"}`)
+						http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
+						Joining = "false"
+						return
+					}
+				}
 				timer := time.Now()
 				if con.Debug {
 					color.Debug.Tips("Received ENDING message")
@@ -184,6 +294,8 @@ func main() {
 				if con.Debug {
 					color.Debug.Tips("Set default timeout to 120 seconds")
 				}
+
+				Joining = "Solving Captcha..."
 				cap := api2captcha.HCaptcha{
 					SiteKey: "30a8dcf5-481e-40d1-88de-51ad22aa8e97",
 					Url:     "https://2captcha.com/demo/hcaptcha",
@@ -191,21 +303,22 @@ func main() {
 				if con.Debug {
 					color.Debug.Tips("Created new captcha")
 				}
+
 				code, err := c.Solve(cap.ToRequest())
 				if err != nil {
-					log.Println(err);
+					log.Println(err)
 					con.LatestRainID += 1
 
 					saveJson, _ := json.Marshal(con)
 					ioutil.WriteFile("./settings.json", saveJson, 0644)
-					color.Debug.Tips("Captcha timeout TIME ELAPSED: "+strconv.Itoa(int(time.Since(timer))))
-					jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"`+err.Error()+`","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`","inline":true},{"name":"PotID","value":"`+strconv.Itoa(con.LatestRainID)+`","inline":true},{"name":"Authentication","value":"`+con.AuthKey+`","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
-					http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
+					color.Debug.Tips("Captcha timeout TIME ELAPSED: " + strconv.Itoa(int(time.Since(timer))))
+					jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Error","value":"` + err.Error() + `","inline":true},{"name":"Rain Amount","value":"` + strconv.Itoa(oldPrice) + `","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif"}}],"username":"StormScraper","avatar_url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif","attachments":[]}`)
+					req, _ := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 					if con.Debug {
 						if data, err := ioutil.ReadAll(req.Body); err != nil {
 							log.Println("Error:", err)
 						} else {
-							color.Debug.Tips("Webhook sent. "+req.Status+"\n"+string(data))
+							color.Debug.Tips("Webhook sent. " + req.Status + "\n" + string(data))
 						}
 					}
 					return
@@ -249,15 +362,14 @@ func main() {
 						if con.Debug {
 							color.Debug.Tips("Joined the rain successfully")
 						}
-						color.Success.Tips("$uccessfully joined the rain!")
-
-						jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`","inline":true},{"name":"PotID","value":"`+strconv.Itoa(con.LatestRainID)+`","inline":true},{"name":"Authentication","value":"`+con.AuthKey+`","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
+						Joining = "Success"
+						jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"` + strconv.Itoa(oldPrice) + `","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif"}}],"username":"StormScraper","avatar_url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif","attachments":[]}`)
 						req, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 						if err != nil {
-							color.Error.Tips("Error sending webhook: "+err.Error())
+							color.Error.Tips("Error sending webhook: " + err.Error())
 						}
 						if con.Debug {
-							color.Debug.Tips("Webhook sent. "+req.Status)
+							color.Debug.Tips("Webhook sent. " + req.Status)
 						}
 					} else {
 						type DataBy struct {
@@ -265,34 +377,29 @@ func main() {
 							Message string `json:"message"`
 							Elapsed int    `json:"elapsed"`
 						}
+
 						var DataByData DataBy
 						json.Unmarshal(data, &DataByData)
-						jsonData1 := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"`+time.Since(timer).String()+`","inline":true},{"name":"Error","value":"`+DataByData.Message+`","inline":true},{"name":"Rain Amount","value":"`+strconv.Itoa(oldPrice)+`","inline":true},{"name":"PotID","value":"`+strconv.Itoa(con.LatestRainID)+`","inline":true},{"name":"Authentication","value":"`+con.AuthKey+`","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
-						
+						jsonData1 := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Error","value":"` + DataByData.Message + `","inline":true},{"name":"Rain Amount","value":"` + strconv.Itoa(oldPrice) + `","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif"}}],"username":"StormScraper","avatar_url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif","attachments":[]}`)
+
 						req1, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData1))
 						log.Println(oldPrice, string(data), time.Since(timer).String())
 						if err != nil {
-							color.Error.Tips("Error sending webhook: "+err.Error())
+							color.Error.Tips("Error sending webhook: " + err.Error())
 							if data, err := ioutil.ReadAll(req1.Body); err != nil {
 								log.Println("Error:", err)
 							} else {
-								color.Debug.Tips("Webhook sent. "+req1.Status+"\n"+string(data))
+								color.Debug.Tips("Webhook sent. " + req1.Status + "\n" + string(data))
 
 							}
 						}
 
-
-
-
-
-						color.Error.Tips("Failed to join the rain :( " + string(data))
-
+						Joining = "Failed"
 					}
-
 
 				}
 				con.LatestRainID += 1
-
+				RainsJoined += 1
 				saveJson, _ := json.Marshal(con)
 				ioutil.WriteFile("./settings.json", saveJson, 0644)
 			}()
@@ -300,68 +407,78 @@ func main() {
 	}
 }
 
-
-var (
-	currentPercent = 0.00
-)
-
-const (
-	padding  = 2
-	maxWidth = 80
-)
-
-
-
-var helpStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#626262")).Render
-type tickMsg time.Time
-
-type model struct {
-	progress progress.Model
-}
-
-func (_ *model) Init() tea.Cmd {
-	return tickCmd()
-}
-
-func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		return m, tea.Quit
-
-	case tea.WindowSizeMsg:
-		m.progress.Width = msg.Width - padding*2 - 4
-		if m.progress.Width > maxWidth {
-			m.progress.Width = maxWidth
-		}
-		return m, nil
-
-	case tickMsg:
-		if m.progress.Percent() == 1.0 {
-			return m, tea.Quit
-		}
-
-		cmd := m.progress.IncrPercent(currentPercent)
-		return m, tea.Batch(tickCmd(), cmd)
-	case progress.FrameMsg:
-		progressModel, cmd := m.progress.Update(msg)
-		m.progress = progressModel.(progress.Model)
-		return m, cmd
-
-	default:
-		return m, nil
+func UpdateRain(con *Config, message []byte) {
+	type Data struct {
+		NewPrize              int `json:"newPrize"`
+		NewJoinedPlayersCount int `json:"newJoinedPlayersCount"`
 	}
+
+	var data Data
+	jsonData := strings.Split(string(message), `",`)[1]
+	jsonData = strings.Replace(jsonData, "]", "", -1)
+	err := json.Unmarshal([]byte(jsonData), &data)
+
+	if err != nil {
+		log.Printf("error: %v", err)
+		return
+	}
+	if con.Debug {
+		color.Debug.Tips("Data structure complete")
+		color.Debug.Tips("Pointer variable created for the data structure")
+		color.Debug.Tips("NewPrize: %d", data.NewPrize)
+		color.Debug.Tips("NewJoinedPlayersCount: %d", data.NewJoinedPlayersCount)
+		color.Debug.Tips("Json unmarshalled")
+		color.Debug.Tips("Updated old price variable with the new variable")
+	}
+
+	if oldPrice < data.NewPrize {
+		//color.Info.Tips("Price has increased! " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
+		Estimated = EstimateEndPrice(data.NewPrize)
+		exec.Command(`echo -n -e "\033]0;Price has increased! ` + strconv.Itoa(oldPrice) + ` -> ` + strconv.Itoa(data.NewPrize) + `\007"`)
+	} else if oldPrice > data.NewPrize {
+		//color.Info.Tips("Rain has ended. Price has returned to 3000: " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
+		Joining = "false"
+		jsonData2 := []byte(`{"content":"Rain has ended. Price has returned to 3000: ` + strconv.Itoa(oldPrice) + ` -> ` + strconv.Itoa(data.NewPrize) + ` | RainID: ` + strconv.Itoa(con.LatestRainID) + `"}`)
+		http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData2))
+	}
+	oldPrice = data.NewPrize
 }
-
-func (e *model) View() string {
-	pad := strings.Repeat(" ", padding)
-	return "\n" +
-		pad + e.progress.View() + "\n\n"
-
+func GUI() {
+	for {
+		cmd1 := exec.Command(`echo -n -e "\033]0;Rain ` + strconv.Itoa(oldPrice) + `\007"`)
+		cmd1.Stdout = os.Stdout
+		cmd1.Run()
+		fmt.Printf(GetLogo())
+		if AuthorizationConfig == nil {
+			color.Magenta.Printf(`
+	
+					╔═ Current price: ` + strconv.Itoa(oldPrice) + `
+					╠═ Join status: ` + Joining + `
+					╠═ Pot ID: ` + strconv.Itoa(PotID) + `
+					╚═ Estimated pool @ 2 minutes: ` + strconv.Itoa(Estimated) + `
+					
+					╔═ User balance: nil
+					╠═ Username: nil
+					╚═ Rains joined this current session: ` + strconv.Itoa(RainsJoined))
+		} else {
+			color.Magenta.Printf(`
+	
+					╔═ Current price: ` + strconv.Itoa(oldPrice) + `
+					╠═ Join status: ` + Joining + `
+					╠═ Pot ID: ` + strconv.Itoa(PotID) + `
+					╚═ Estimated pool @ 2 minutes: ` + strconv.Itoa(Estimated) + `
+					
+					╔═ User balance: ` + strconv.Itoa(AuthorizationConfig.UserData.Balance) + `
+					╠═ Username: ` + AuthorizationConfig.UserData.DisplayName + `
+					╚═ Rains joined this current session: ` + strconv.Itoa(RainsJoined))
+		}
+		time.Sleep(time.Second * 1)
+		cmd := exec.Command(`clear`)
+		cmd.Stdout = os.Stdout
+		cmd.Run()
+	}
 
 }
-
-func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second*1, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
+func EstimateEndPrice(newPrice int) int {
+	return ((newPrice - oldPrice) * 30) + oldPrice
 }
