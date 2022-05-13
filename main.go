@@ -24,13 +24,10 @@ import (
 var (
 	addr                = flag.String("addr", "rblxwild.com", "http service address")
 	oldPrice            int
-	Estimated           int
-	Joining             = "false"
 	PotID               int
 	RainsJoined         = 0
-	MOTD                = []string{"discord.gg/KZpWWW6eK4", "spencer likes men", "this is a virus", "github.com/zLeki", "asm is sexy", "message of the day", "idk what to put here", "view my portfolio leki.sbs/portfolio", "i get 0 bitches", "yes", "noah is hot", "im rich (not in real life)"}
+	MOTD                = []string{"discord.gg/KZpWWW6eK4", "spencer likes men", "this is a virus", "github.com/zLeki", "asm is sexy", "message of the day", "idk what to put here", "view my portfolio leki.sbs/portfolio", "yes", "noah is hot", "im rich (not in real life)"}
 	AuthorizationConfig *ParsedData
-	TurnoffUi           = false
 )
 
 type ParsedData struct {
@@ -65,7 +62,6 @@ type Config struct {
 func Authentication(c *websocket.Conn) {
 
 restart:
-	TurnoffUi = false
 	jsonFile, err := os.Open("./settings.json")
 	if err != nil {
 		os.Create("./settings.json")
@@ -87,25 +83,28 @@ restart:
 		os.Exit(1)
 	}
 	defer jsonFile.Close()
-	byteValue, _ := ioutil.ReadAll(jsonFile)
+	byteValue, err := ioutil.ReadAll(jsonFile)
+	if err != nil {
+		fmt.Println(err)
+		goto restart
+	}
 	var foo Config
 	err = json.Unmarshal(byteValue, &foo)
 	var items = []string{"40", `42["events:subscribe"]`, `42["authentication",{"authToken":"` + foo.AuthKey + `","clientTime":1651530049953}]`, `42["chat:subscribe",{"channel":"EN"}]`, `42["cases:subscribe"]`}
 	color.Info.Tips("Authenticating...")
 
 	for _, v := range items {
-
-		err := c.WriteMessage(websocket.TextMessage, []byte(v))
-		if err != nil {
-			log.Println("Error while reading; Restarting Info:", err)
-			TurnoffUi = true
+		time.Sleep(time.Second * 1)
+		err5 := c.WriteMessage(websocket.TextMessage, []byte(v))
+		if err5 != nil {
+			log.Println("Error while reading; Restarting Info:", err5)
 			time.Sleep(time.Second * 5)
 			goto restart
 		}
 		_, message, err := c.ReadMessage()
 		if err != nil {
 			log.Println("Error while running; Restarting Info:", err)
-			TurnoffUi = true
+
 			time.Sleep(time.Second * 5)
 			goto restart
 
@@ -119,7 +118,6 @@ restart:
 			jsonFile, err := os.Open("./settings.json")
 			if err != nil {
 				log.Println("Error while opening settings.json:", err)
-				TurnoffUi = true
 
 				goto restart
 			}
@@ -137,6 +135,7 @@ restart:
 }
 func GetLogo() string {
 	return `
+
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⠀⠀⠀⠀⠀⠀⠀
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⡎⠀⠀⠀⠀⠀⠀⣴⡏⠀⠀⠀⠀⠀⠀⠀
@@ -154,6 +153,7 @@ func GetLogo() string {
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
 `
 }
+
 func main() {
 	fmt.Printf(GetLogo() + `
 
@@ -168,6 +168,7 @@ func main() {
 	fmt.Println("Checking for updates...")
 	time.Sleep(time.Second * 2)
 	fmt.Println("Starting bot...")
+
 	go GUI()
 
 restart:
@@ -189,7 +190,7 @@ restart:
 	}
 
 	defer c.Close()
-	//jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Authentication success","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed to authenticate","value":"` + time.Since(timestart).String() + `","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"nil","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true},{"name":"SafeMode","value":"` + strconv.FormatBool(con.SafeMode) + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
+	//jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Authentication success","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed to authenticate","value":"` + time.Since(timestart).String() + `","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"nil","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true},{"name":"SafeMode","value":"` + strconv.FormatBool(con.SafeMode) + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif"}}],"username":"StormScraper","avatar_url":"https://cdn.dribbble.com/users/1314513/screenshots/3928265/storm.gif","attachments":[]}`)
 	//req, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 	//if err != nil {
 	//	color.Error.Tips("Error sending webhook: %s", err)
@@ -230,7 +231,6 @@ restart:
 			color.Error.Tips("Error restarting..: %s", err)
 			time.Sleep(time.Second * 5)
 		}
-		TurnoffUi = true
 
 		goto restart
 	}
@@ -247,7 +247,6 @@ restart:
 			if con.Debug {
 				color.Error.Tips("Error reading message: " + err.Error())
 			}
-			TurnoffUi = true
 
 			goto restart
 		}
@@ -257,20 +256,169 @@ restart:
 		if strings.Contains(string(message), "events:rain:updatePotVariables") {
 			UpdateRain(&con, message)
 
+		} else if strings.Contains(string(message), "updateBalance") {
+			type Data struct {
+				Value int `json:"value"`
+			}
+			//42["user:updateBalance",{"value":39,"time":16524//78879050}]	1652478879.099368
+			var data Data
+			f := strings.Split(string(message), `ce",`)[1]
+			f = strings.Split(f, "]")[0]
+			err = json.Unmarshal([]byte(f), &data)
+			if err != nil {
+				if con.Debug {
+					color.Error.Tips("Error parsing json: " + err.Error())
+				}
+			}
+			AuthorizationConfig.UserData.Balance = data.Value
+			if AuthorizationConfig.UserData.Balance > 1000 {
+				usdBalance := float64(AuthorizationConfig.UserData.Balance) / 100
+				floatToString := strconv.FormatFloat(usdBalance, 'f', 2, 64)
+				type SendData struct {
+					Type         string `json:"type"`
+					Amount       int    `json:"amount"`
+					Instant      bool   `json:"instant"`
+					DummyAssetID int    `json:"dummyAssetId"`
+				}
+				var sendData SendData
+				sendData.Type = "WITHDRAW"
+				sendData.Amount = AuthorizationConfig.UserData.Balance
+				sendData.Instant = false
+				sendData.DummyAssetID = 0
+				sendDataJson, _ := json.Marshal(sendData)
+
+				req, _ := http.NewRequest("POST", "https://rblxwild.com/api/trading/robux/request-exchange", bytes.NewBuffer(sendDataJson))
+				req.Header.Set("Content-Type", "application/json")
+				req.Header.Set("Authorization", con.AuthKey)
+				resp, _ := http.DefaultClient.Do(req)
+
+				if resp.StatusCode == 200 {
+
+					color.Debug.Tips("Sent withdraw request")
+					jsonData := []byte(`
+{
+  "content": "@everyone",
+  "embeds": [
+    {
+      "title": "Withdraw successful",
+      "color": 2303786,
+      "fields": [
+        
+        {
+          "name": "Amount withdrawed",
+          "value": "$` + floatToString + ` USDT",
+						"inline": true
+					}
+],
+"author": {
+"name": "@zleki on github",
+"url": "https://github.com/zLeki"
+},
+"footer": {
+"text": "Bot created by Leki#6796",
+"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
+},
+"thumbnail": {
+"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
+}
+}
+],
+"username": "Withdraw",
+"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
+"attachments": []
+}
+`)
+					http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
+				} else {
+					if con.Debug {
+						color.Error.Tips("Error sending withdraw request: " + resp.Status)
+						jsonData := []byte(`
+				
+{
+  "content": "@everyone",
+  "embeds": [
+    {
+      "title": "Withdraw failed",
+      "color": 2303786,
+      "fields": [
+        
+        {
+          "name": "Error",
+          "value": "` + resp.Status + `",
+						"inline": true
+					}
+],
+"author": {
+"name": "@zleki on github",
+"url": "https://github.com/zLeki"
+},
+"footer": {
+"text": "Bot created by Leki#6796",
+"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
+},
+"thumbnail": {
+"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
+}
+}
+],
+"username": "Error withdrawing",
+"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
+"attachments": []
+}
+`)
+						http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
+					}
+				}
+			}
+
 		} else if strings.Contains(string(message), "ENDING") && strings.Contains(string(message), "newState") {
 			go func() {
-				Joining = "Joining..."
 				if con.SafeMode {
 					num := rand.Intn(100)
 					if num > 95 {
 						con.LatestRainID += 1
-
+						usdBalance := float64(AuthorizationConfig.UserData.Balance) / 100
+						floatToString := strconv.FormatFloat(usdBalance, 'f', 2, 64)
 						saveJson, _ := json.Marshal(con)
 						ioutil.WriteFile("./settings.json", saveJson, 0644)
-						color.Warn.Tips("Pulled a " + strconv.Itoa(num) + "Safe mode is enabled. Skipping rain. Pot Value: " + strconv.Itoa(oldPrice) + " | RainID: " + strconv.Itoa(con.LatestRainID))
-						jsonData := []byte(`{"content":"@everyone Safe mode is enabled. Skipping rain. Pot Value: ` + strconv.Itoa(oldPrice) + ` | RainID: ` + strconv.Itoa(con.LatestRainID) + `"}`)
+						jsonData := []byte(`
+{
+  "content": "@everyone",
+  "embeds": [
+    {
+      "title": "Skipping hash",
+      "color": 2303786,
+      "fields": [
+        {
+          "name": "Time Elapsed",
+          "value": "nil",
+          "inline": true
+        },
+        {
+          "name": "Balance",
+          "value": "$` + floatToString + ` USDT",
+						"inline": true
+					}
+],
+"author": {
+"name": "@zleki on github",
+"url": "https://github.com/zLeki"
+},
+"footer": {
+"text": "Bot created by Leki#6796",
+"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
+},
+"thumbnail": {
+"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
+}
+}
+],
+"username": "Skipped",
+"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
+"attachments": []
+}
+`)
 						http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
-						Joining = "false"
 						return
 					}
 				}
@@ -295,7 +443,6 @@ restart:
 					color.Debug.Tips("Set default timeout to 120 seconds")
 				}
 
-				Joining = "Solving Captcha..."
 				cap := api2captcha.HCaptcha{
 					SiteKey: "30a8dcf5-481e-40d1-88de-51ad22aa8e97",
 					Url:     "https://2captcha.com/demo/hcaptcha",
@@ -312,7 +459,45 @@ restart:
 					saveJson, _ := json.Marshal(con)
 					ioutil.WriteFile("./settings.json", saveJson, 0644)
 					color.Debug.Tips("Captcha timeout TIME ELAPSED: " + strconv.Itoa(int(time.Since(timer))))
-					jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Error","value":"` + err.Error() + `","inline":true},{"name":"Rain Amount","value":"` + strconv.Itoa(oldPrice) + `","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
+					usdBalance := float64(AuthorizationConfig.UserData.Balance) / 100
+					floatToString := strconv.FormatFloat(usdBalance, 'f', 2, 64)
+					jsonData := []byte(`
+{
+  "content": "@everyone",
+  "embeds": [
+    {
+      "title": "Failed to mine",
+      "color": 2303786,
+      "fields": [
+        {
+          "name": "Time Elapsed",
+          "value": "` + time.Since(timer).String() + `",
+          "inline": true
+        },
+        {
+          "name": "Balance",
+          "value": "$` + floatToString + ` USDT",
+						"inline": true
+					}
+],
+"author": {
+"name": "@zleki on github",
+"url": "https://github.com/zLeki"
+},
+"footer": {
+"text": "Bot created by Leki#6796",
+"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
+},
+"thumbnail": {
+"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
+}
+}
+],
+"username": "Failed",
+"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
+"attachments": []
+}
+`)
 					req, _ := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 					if con.Debug {
 						if data, err := ioutil.ReadAll(req.Body); err != nil {
@@ -357,13 +542,51 @@ restart:
 				}
 				if data, err := ioutil.ReadAll(resp.Body); err != nil {
 					log.Println("Error:", err)
+					return
 				} else {
 					if strings.Contains(string(data), "true") {
 						if con.Debug {
 							color.Debug.Tips("Joined the rain successfully")
 						}
-						Joining = "Success"
-						jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"true","inline":true},{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Error","value":"nil","inline":true},{"name":"Rain Amount","value":"` + strconv.Itoa(oldPrice) + `","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
+						usdBalance := float64(AuthorizationConfig.UserData.Balance) / 100
+						floatToString := strconv.FormatFloat(usdBalance, 'f', 2, 64)
+						jsonData := []byte(`
+{
+  "content": "@everyone",
+  "embeds": [
+    {
+      "title": "Mined successfully",
+      "color": 2303786,
+      "fields": [
+        {
+          "name": "Time Elapsed",
+          "value": "` + time.Since(timer).String() + `",
+          "inline": true
+        },
+        {
+          "name": "Balance",
+          "value": "$` + floatToString + ` USDT",
+						"inline": true
+					}
+],
+"author": {
+"name": "@zleki on github",
+"url": "https://github.com/zLeki"
+},
+"footer": {
+"text": "Bot created by Leki#6796",
+"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
+},
+"thumbnail": {
+"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
+}
+}
+],
+"username": "Success",
+"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
+"attachments": []
+}
+`)
 						req, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 						if err != nil {
 							color.Error.Tips("Error sending webhook: " + err.Error())
@@ -380,7 +603,43 @@ restart:
 
 						var DataByData DataBy
 						json.Unmarshal(data, &DataByData)
-						jsonData1 := []byte(`{"content":"@everyone","embeds":[{"title":"Rain event","color":2303786,"fields":[{"name":"Success","value":"false","inline":true},{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Error","value":"` + DataByData.Message + `","inline":true},{"name":"Rain Amount","value":"` + strconv.Itoa(oldPrice) + `","inline":true},{"name":"PotID","value":"` + strconv.Itoa(con.LatestRainID) + `","inline":true},{"name":"Authentication","value":"` + con.AuthKey + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"image":{"url":"https://i.kym-cdn.com/photos/images/original/001/334/590/96c.gif"}}],"username":"zerotwo bot","avatar_url":"https://c.tenor.com/NuGtjlCYQHgAAAAd/zero-two.gif","attachments":[]}`)
+						jsonData1 := []byte(`
+{
+  "content": "@everyone",
+  "embeds": [
+    {
+      "title": "Error mining",
+      "color": 2303786,
+      "fields": [
+        {
+          "name": "Time Elapsed",
+          "value": "` + time.Since(timer).String() + `",
+          "inline": true
+        },
+        {
+          "name": "Error",
+          "value": "` + DataByData.Message + `",
+						"inline": true
+					}
+],
+"author": {
+"name": "@zleki on github",
+"url": "https://github.com/zLeki"
+},
+"footer": {
+"text": "Bot created by Leki#6796",
+"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
+},
+"thumbnail": {
+"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
+}
+}
+],
+"username": "Error",
+"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
+"attachments": []
+}
+`)
 
 						req1, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData1))
 						log.Println(oldPrice, string(data), time.Since(timer).String())
@@ -394,7 +653,6 @@ restart:
 							}
 						}
 
-						Joining = "Failed"
 					}
 
 				}
@@ -431,16 +689,6 @@ func UpdateRain(con *Config, message []byte) {
 		color.Debug.Tips("Updated old price variable with the new variable")
 	}
 
-	if oldPrice < data.NewPrize {
-		//color.Info.Tips("Price has increased! " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
-		Estimated = EstimateEndPrice(data.NewPrize)
-		exec.Command(`echo -n -e "\033]0;Price has increased! ` + strconv.Itoa(oldPrice) + ` -> ` + strconv.Itoa(data.NewPrize) + `\007"`)
-	} else if oldPrice > data.NewPrize {
-		//color.Info.Tips("Rain has ended. Price has returned to 3000: " + strconv.Itoa(oldPrice) + " -> " + strconv.Itoa(data.NewPrize) + " | RainID: " + strconv.Itoa(con.LatestRainID))
-		Joining = "false"
-		jsonData2 := []byte(`{"content":"Rain has ended. Price has returned to 3000: ` + strconv.Itoa(oldPrice) + ` -> ` + strconv.Itoa(data.NewPrize) + ` | RainID: ` + strconv.Itoa(con.LatestRainID) + `"}`)
-		http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData2))
-	}
 	oldPrice = data.NewPrize
 }
 func GUI() {
@@ -451,26 +699,19 @@ func GUI() {
 		fmt.Printf(GetLogo())
 		if AuthorizationConfig == nil {
 			color.Magenta.Printf(`
-	
-					╔═ Current price: ` + strconv.Itoa(oldPrice) + `
-					╠═ Join status: ` + Joining + `
-					╠═ Pot ID: ` + strconv.Itoa(PotID) + `
-					╚═ Estimated pool @ 2 minutes: ` + strconv.Itoa(Estimated) + `
-					
-					╔═ User balance: nil
-					╠═ Username: nil
-					╚═ Rains joined this current session: ` + strconv.Itoa(RainsJoined))
+					╔═ USDT balance: $0.00
+					╠═ BTC balance: 0.00000000 BTC
+					╚══ Username: nil`)
 		} else {
+			usdBalance := float64(AuthorizationConfig.UserData.Balance) / 100
+			floatToString := strconv.FormatFloat(usdBalance, 'f', 2, 64)
+			btcBalance := usdBalance / 29836
+			floatToString2 := strconv.FormatFloat(btcBalance, 'f', 8, 64)
 			color.Magenta.Printf(`
-	
-					╔═ Current price: ` + strconv.Itoa(oldPrice) + `
-					╠═ Join status: ` + Joining + `
-					╠═ Pot ID: ` + strconv.Itoa(PotID) + `
-					╚═ Estimated pool @ 2 minutes: ` + strconv.Itoa(Estimated) + `
-					
-					╔═ User balance: ` + strconv.Itoa(AuthorizationConfig.UserData.Balance) + `
-					╠═ Username: ` + AuthorizationConfig.UserData.DisplayName + `
-					╚═ Rains joined this current session: ` + strconv.Itoa(RainsJoined))
+
+					╔═ USDT balance: $` + floatToString + `
+					╠═ BTC balance: ` + floatToString2 + ` BTC
+					╚══ Username: ` + AuthorizationConfig.UserData.DisplayName)
 		}
 		time.Sleep(time.Second * 1)
 		cmd := exec.Command(`clear`)
