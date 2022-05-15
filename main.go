@@ -237,7 +237,10 @@ restart:
 
 	for {
 		PotID = con.LatestRainID
-		c.WriteMessage(websocket.TextMessage, []byte("3"))
+		err := c.WriteMessage(websocket.TextMessage, []byte("3"))
+		if err != nil {
+			goto restart
+		}
 		if con.Debug {
 			color.Debug.Tips("Sent ping to " + u.String())
 		}
@@ -295,77 +298,12 @@ restart:
 				if resp.StatusCode == 200 {
 
 					color.Debug.Tips("Sent withdraw request")
-					jsonData := []byte(`
-{
-  "content": "@everyone",
-  "embeds": [
-    {
-      "title": "Withdraw successful",
-      "color": 2303786,
-      "fields": [
-        
-        {
-          "name": "Amount withdrawed",
-          "value": "$` + floatToString + ` USDT",
-						"inline": true
-					}
-],
-"author": {
-"name": "@zleki on github",
-"url": "https://github.com/zLeki"
-},
-"footer": {
-"text": "Bot created by Leki#6796",
-"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
-},
-"thumbnail": {
-"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
-}
-}
-],
-"username": "Withdraw",
-"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
-"attachments": []
-}
-`)
+					jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Withdraw successful","color":2303786,"fields":[{"name":"Amount withdrawed","value":"$` + floatToString + ` USDT","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://bitcoin.org/img/icons/opengraph.png?1651392467"}}],"username":"Withdraw","avatar_url":"https://bitcoin.org/img/icons/opengraph.png?1651392467","attachments":[]}`)
 					http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 				} else {
 					if con.Debug {
 						color.Error.Tips("Error sending withdraw request: " + resp.Status)
-						jsonData := []byte(`
-				
-{
-  "content": "@everyone",
-  "embeds": [
-    {
-      "title": "Withdraw failed",
-      "color": 2303786,
-      "fields": [
-        
-        {
-          "name": "Error",
-          "value": "` + resp.Status + `",
-						"inline": true
-					}
-],
-"author": {
-"name": "@zleki on github",
-"url": "https://github.com/zLeki"
-},
-"footer": {
-"text": "Bot created by Leki#6796",
-"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
-},
-"thumbnail": {
-"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
-}
-}
-],
-"username": "Error withdrawing",
-"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
-"attachments": []
-}
-`)
+						jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Withdraw failed","color":2303786,"fields":[{"name":"Error","value":"` + resp.Status + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://bitcoin.org/img/icons/opengraph.png?1651392467"}}],"username":"Error withdrawing","avatar_url":"https://bitcoin.org/img/icons/opengraph.png?1651392467","attachments":[]}`)
 						http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 					}
 				}
@@ -381,43 +319,7 @@ restart:
 						floatToString := strconv.FormatFloat(usdBalance, 'f', 2, 64)
 						saveJson, _ := json.Marshal(con)
 						ioutil.WriteFile("./settings.json", saveJson, 0644)
-						jsonData := []byte(`
-{
-  "content": "@everyone",
-  "embeds": [
-    {
-      "title": "Skipping hash",
-      "color": 2303786,
-      "fields": [
-        {
-          "name": "Time Elapsed",
-          "value": "nil",
-          "inline": true
-        },
-        {
-          "name": "Balance",
-          "value": "$` + floatToString + ` USDT",
-						"inline": true
-					}
-],
-"author": {
-"name": "@zleki on github",
-"url": "https://github.com/zLeki"
-},
-"footer": {
-"text": "Bot created by Leki#6796",
-"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
-},
-"thumbnail": {
-"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
-}
-}
-],
-"username": "Skipped",
-"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
-"attachments": []
-}
-`)
+						jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Skipping hash","color":2303786,"fields":[{"name":"Time Elapsed","value":"nil","inline":true},{"name":"Balance","value":"$` + floatToString + ` USDT","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://bitcoin.org/img/icons/opengraph.png?1651392467"}}],"username":"Skipped","avatar_url":"https://bitcoin.org/img/icons/opengraph.png?1651392467","attachments":[]}`)
 						http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 						return
 					}
@@ -434,11 +336,11 @@ restart:
 				if con.Debug {
 					color.Debug.Tips("Pointer variable created for the data structure")
 				}
-				c := api2captcha.NewClient(con.TwoCaptchaKey)
+				captcha := api2captcha.NewClient(con.TwoCaptchaKey)
 				if con.Debug {
 					color.Debug.Tips("Created new client")
 				}
-				c.DefaultTimeout = 120
+				captcha.DefaultTimeout = 120
 				if con.Debug {
 					color.Debug.Tips("Set default timeout to 120 seconds")
 				}
@@ -451,7 +353,7 @@ restart:
 					color.Debug.Tips("Created new captcha")
 				}
 
-				code, err := c.Solve(cap.ToRequest())
+				code, err := captcha.Solve(cap.ToRequest())
 				if err != nil {
 					log.Println(err)
 					con.LatestRainID += 1
@@ -461,43 +363,7 @@ restart:
 					color.Debug.Tips("Captcha timeout TIME ELAPSED: " + strconv.Itoa(int(time.Since(timer))))
 					usdBalance := float64(AuthorizationConfig.UserData.Balance) / 100
 					floatToString := strconv.FormatFloat(usdBalance, 'f', 2, 64)
-					jsonData := []byte(`
-{
-  "content": "@everyone",
-  "embeds": [
-    {
-      "title": "Failed to mine",
-      "color": 2303786,
-      "fields": [
-        {
-          "name": "Time Elapsed",
-          "value": "` + time.Since(timer).String() + `",
-          "inline": true
-        },
-        {
-          "name": "Balance",
-          "value": "$` + floatToString + ` USDT",
-						"inline": true
-					}
-],
-"author": {
-"name": "@zleki on github",
-"url": "https://github.com/zLeki"
-},
-"footer": {
-"text": "Bot created by Leki#6796",
-"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
-},
-"thumbnail": {
-"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
-}
-}
-],
-"username": "Failed",
-"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
-"attachments": []
-}
-`)
+					jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Failed to mine","color":2303786,"fields":[{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Balance","value":"$` + floatToString + ` USDT","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://bitcoin.org/img/icons/opengraph.png?1651392467"}}],"username":"Failed","avatar_url":"https://bitcoin.org/img/icons/opengraph.png?1651392467","attachments":[]}`)
 					req, _ := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 					if con.Debug {
 						if data, err := ioutil.ReadAll(req.Body); err != nil {
@@ -550,49 +416,17 @@ restart:
 						}
 						usdBalance := float64(AuthorizationConfig.UserData.Balance) / 100
 						floatToString := strconv.FormatFloat(usdBalance, 'f', 2, 64)
-						jsonData := []byte(`
-{
-  "content": "@everyone",
-  "embeds": [
-    {
-      "title": "Mined successfully",
-      "color": 2303786,
-      "fields": [
-        {
-          "name": "Time Elapsed",
-          "value": "` + time.Since(timer).String() + `",
-          "inline": true
-        },
-        {
-          "name": "Balance",
-          "value": "$` + floatToString + ` USDT",
-						"inline": true
-					}
-],
-"author": {
-"name": "@zleki on github",
-"url": "https://github.com/zLeki"
-},
-"footer": {
-"text": "Bot created by Leki#6796",
-"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
-},
-"thumbnail": {
-"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
-}
-}
-],
-"username": "Success",
-"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
-"attachments": []
-}
-`)
+						jsonData := []byte(`{"content":"@everyone","embeds":[{"title":"Mined successfully","color":2303786,"fields":[{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Balance","value":"$` + floatToString + ` USDT","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://bitcoin.org/img/icons/opengraph.png?1651392467"}}],"username":"Success","avatar_url":"https://bitcoin.org/img/icons/opengraph.png?1651392467","attachments":[]}`)
 						req, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData))
 						if err != nil {
 							color.Error.Tips("Error sending webhook: " + err.Error())
 						}
 						if con.Debug {
 							color.Debug.Tips("Webhook sent. " + req.Status)
+						}
+						err = c.WriteMessage(websocket.TextMessage, []byte(`42["upgrader:play",{"inputBetAmount":5,"outputBetAmount":6,"rollType":"UNDER","fastAnimation":false}]`))
+						if err != nil {
+							return
 						}
 					} else {
 						type DataBy struct {
@@ -603,43 +437,7 @@ restart:
 
 						var DataByData DataBy
 						json.Unmarshal(data, &DataByData)
-						jsonData1 := []byte(`
-{
-  "content": "@everyone",
-  "embeds": [
-    {
-      "title": "Error mining",
-      "color": 2303786,
-      "fields": [
-        {
-          "name": "Time Elapsed",
-          "value": "` + time.Since(timer).String() + `",
-          "inline": true
-        },
-        {
-          "name": "Error",
-          "value": "` + DataByData.Message + `",
-						"inline": true
-					}
-],
-"author": {
-"name": "@zleki on github",
-"url": "https://github.com/zLeki"
-},
-"footer": {
-"text": "Bot created by Leki#6796",
-"icon_url": "https://avatars.githubusercontent.com/u/85647342?v=4"
-},
-"thumbnail": {
-"url": "https://bitcoin.org/img/icons/opengraph.png?1651392467"
-}
-}
-],
-"username": "Error",
-"avatar_url": "https://bitcoin.org/img/icons/opengraph.png?1651392467",
-"attachments": []
-}
-`)
+						jsonData1 := []byte(`{"content":"@everyone","embeds":[{"title":"Error mining","color":2303786,"fields":[{"name":"Time Elapsed","value":"` + time.Since(timer).String() + `","inline":true},{"name":"Error","value":"` + DataByData.Message + `","inline":true}],"author":{"name":"@zleki on github","url":"https://github.com/zLeki"},"footer":{"text":"Bot created by Leki#6796","icon_url":"https://avatars.githubusercontent.com/u/85647342?v=4"},"thumbnail":{"url":"https://bitcoin.org/img/icons/opengraph.png?1651392467"}}],"username":"Error","avatar_url":"https://bitcoin.org/img/icons/opengraph.png?1651392467","attachments":[]}`)
 
 						req1, err := http.Post(con.Webhook, "application/json", bytes.NewBuffer(jsonData1))
 						log.Println(oldPrice, string(data), time.Since(timer).String())
