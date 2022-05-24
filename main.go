@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	api2captcha "github.com/2captcha/2captcha-go"
@@ -59,7 +60,7 @@ type Config struct {
 
 //wss://rblxwild.com/socket.io/?EIO=3&transport=websocket
 //wss://rblxwild.com/socket.io/?EIO=3&transport=websocket
-func Authentication(c *websocket.Conn) {
+func Authentication(c *websocket.Conn) error {
 
 restart:
 	jsonFile, err := os.Open("./settings.json")
@@ -95,18 +96,17 @@ restart:
 
 	for _, v := range items {
 		time.Sleep(time.Second * 1)
+		if c == nil {
+			return errors.New("Connection closed")
+		}
 		err5 := c.WriteMessage(websocket.TextMessage, []byte(v))
+
 		if err5 != nil {
-			log.Println("Error while reading; Restarting Info:", err5)
-			time.Sleep(time.Second * 5)
-			goto restart
+			return err5
 		}
 		_, message, err := c.ReadMessage()
 		if err != nil {
-			log.Println("Error while running; Restarting Info:", err)
-
-			time.Sleep(time.Second * 5)
-			goto restart
+			return err
 
 		}
 		if strings.Contains(string(message), "authenticationResponse") {
@@ -131,6 +131,7 @@ restart:
 
 		}
 	}
+	return nil
 
 }
 func GetLogo() string {
@@ -183,7 +184,10 @@ restart:
 
 	c, resp, err := websocket.DefaultDialer.Dial(u.String(), nil)
 
-	Authentication(c)
+	err = Authentication(c)
+	if err != nil {
+		goto restart
+	}
 
 	if err != nil {
 		log.Println("dial:", err, resp.Status)
@@ -424,7 +428,7 @@ restart:
 						if con.Debug {
 							color.Debug.Tips("Webhook sent. " + req.Status)
 						}
-						err = c.WriteMessage(websocket.TextMessage, []byte(`42["upgrader:play",{"inputBetAmount":5,"outputBetAmount":6,"rollType":"UNDER","fastAnimation":false}]`))
+						err = c.WriteMessage(websocket.TextMessage, []byte(`42["crash:bet",{"betAmount":5,"autoCashout":1.01}]`))
 						if err != nil {
 							return
 						}
@@ -511,7 +515,7 @@ func GUI() {
 					╠═ BTC balance: ` + floatToString2 + ` BTC
 					╚══ Username: ` + AuthorizationConfig.UserData.DisplayName)
 		}
-		time.Sleep(time.Second * 1)
+		time.Sleep(time.Second * 15)
 		cmd := exec.Command(`clear`)
 		cmd.Stdout = os.Stdout
 		cmd.Run()
